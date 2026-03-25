@@ -1,28 +1,31 @@
 """
 mermaid_to_png.py
 =================
-Converte um arquivo .mmd (Mermaid) em uma imagem PNG.
+Converte código Mermaid em imagem PNG.
 
 Dependências:
     pip install requests
 
 Estrutura dos arquivos:
     mermaid_to_png.py   ← script principal
-    diagrama.mmd        ← seu arquivo Mermaid de entrada
+    diagrama.mmd        ← arquivo Mermaid de entrada (modo arquivo)
     diagrama.png        ← imagem PNG gerada (saída)
 
-Fluxo de execução:
-    1. Lê o arquivo .mmd informado via argumento (ou padrão: diagrama.mmd)
-    2. Envia o código para a API pública mermaid.ink
-    3. Salva o PNG retornado no caminho de saída
-    4. Exibe o caminho absoluto do arquivo gerado
+Modos de uso
+------------
+1. Via arquivo .mmd (--mode file):
+    python mermaid_to_png.py --mode file --input diagrama.mmd --output resultado.png
 
-Como executar:
-    # Especificando entrada e saída
-    python mermaid_to_png.py --input meu_arquivo.mmd --output resultado.png
+2. Via código inline no script (--mode inline):
+    Edite a variável INLINE_CODE abaixo e execute:
+    python mermaid_to_png.py --mode inline --output resultado.png
 
-    # Escolhendo tema (default | dark | forest | neutral)
-    python mermaid_to_png.py --input meu_arquivo.mmd --theme dark
+Argumentos disponíveis:
+    --mode    file | inline       Fonte do código Mermaid (padrão: file)
+    --input   caminho do .mmd     Obrigatório no modo file (padrão: diagrama.mmd)
+    --output  caminho do .png     Padrão: diagrama.png
+    --theme   default|dark|forest|neutral  (padrão: default)
+    --timeout segundos            Padrão: 30
 """
 
 import argparse
@@ -31,6 +34,36 @@ import sys
 from pathlib import Path
 
 import requests
+
+
+# ---------------------------------------------------------------------------
+# Código Mermaid inline — edite aqui para usar o modo inline
+# ---------------------------------------------------------------------------
+
+INLINE_CODE = """
+flowchart TD
+    A[Início] --> B[Tela de Login]
+
+    B --> C[Inserir E-mail]
+    C --> D[Inserir Senha]
+    D --> E{Credenciais válidas?}
+
+    E -- Não --> F[Exibir Erro]
+    F --> G{Tentativas esgotadas?}
+    G -- Não --> B
+    G -- Sim --> H[Bloquear Conta]
+    H --> I[Enviar E-mail de Desbloqueio]
+    I --> FIM([Fim])
+
+    E -- Sim --> J{Tem 2FA ativo?}
+    J -- Não --> K[Redirecionar para Dashboard]
+    J -- Sim --> L[Enviar Código por SMS ou E-mail]
+    L --> M[Inserir Código 2FA]
+    M --> N{Código válido?}
+    N -- Não --> L
+    N -- Sim --> K
+    K --> FIM
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -148,18 +181,24 @@ def read_mmd_file(path: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Converte um arquivo Mermaid (.mmd) em PNG.",
+        description="Converte código Mermaid em PNG (via arquivo ou inline).",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--mode", "-m",
+        default="file",
+        choices=["file", "inline"],
+        help="Fonte do código Mermaid: 'file' lê um .mmd, 'inline' usa INLINE_CODE no script.",
     )
     parser.add_argument(
         "--input", "-i",
         default="diagrama.mmd",
-        help="Caminho do arquivo .mmd de entrada.",
+        help="Caminho do arquivo .mmd (usado apenas no modo file).",
     )
     parser.add_argument(
         "--output", "-o",
-        default=None,
-        help="Caminho do arquivo PNG de saída. Padrão: mesmo nome do input com extensão .png.",
+        default="diagrama.png",
+        help="Caminho do arquivo PNG de saída.",
     )
     parser.add_argument(
         "--theme", "-t",
@@ -179,18 +218,29 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    output_path = args.output or str(Path(args.input).with_suffix(".png"))
-
-    print(f"  Entrada : {args.input}")
-    print(f"  Saída   : {output_path}")
+    print(f"  Modo    : {args.mode}")
+    if args.mode == "file":
+        print(f"  Entrada : {args.input}")
+    else:
+        print(f"  Entrada : INLINE_CODE (definida no script)")
+    print(f"  Saída   : {args.output}")
     print(f"  Tema    : {args.theme}")
     print()
 
     try:
-        mermaid_code = read_mmd_file(args.input)
+        if args.mode == "file":
+            mermaid_code = read_mmd_file(args.input)
+        else:
+            if not INLINE_CODE or not INLINE_CODE.strip():
+                raise ValueError(
+                    "A variável INLINE_CODE está vazia. "
+                    "Edite-a no script antes de usar o modo inline."
+                )
+            mermaid_code = INLINE_CODE
+
         saved_path = mermaid_to_png(
             mermaid_code,
-            output_path=output_path,
+            output_path=args.output,
             theme=args.theme,
             timeout=args.timeout,
         )
@@ -200,7 +250,7 @@ def main() -> None:
         print(f"✘ Arquivo não encontrado: {exc}", file=sys.stderr)
         sys.exit(1)
     except (ValueError, MermaidConversionError) as exc:
-        print(f"✘ Erro na conversão: {exc}", file=sys.stderr)
+        print(f"✘ Erro: {exc}", file=sys.stderr)
         sys.exit(1)
 
 

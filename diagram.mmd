@@ -1,0 +1,21 @@
+flowchart TD
+    A[Início] --> B[Tela de Cadastro de Empresa]
+
+    B --> C[Inserir ID]
+    C --> D[Inserir Nome]
+    D --> E[Inserir CNPJ]
+
+    E --> F{Escolher Ação}
+
+    F --> G[Listar Empresas]
+    F --> H[Deletar Empresa]
+    F --> I[Cadastrar Nova Empresa]
+
+    G --> J[Exibir Lista de Empresas]
+    J --> F
+
+    H --> K[Selecionar Empresa para Deletar]
+    K --> L[Confirmar Exclusão]
+    L --> F
+
+    I --> B
